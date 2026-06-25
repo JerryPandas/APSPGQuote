@@ -1,0 +1,6 @@
+INFO:     Started server process [54988]
+INFO:     Waiting for application startup.
+D:\VSCodeTest\APSPGQuote\Quote_Api\main.py:14: SAWarning: Unrecognized server version info '17.0.1000.7'.  Some SQL Server features may not function properly.
+  if not db.query(APSPGQuoteUser).first():
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8892 (Press CTRL+C to quit)
