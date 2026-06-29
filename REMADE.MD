@@ -39,7 +39,7 @@ erDiagram
 - 第一层关系
   - APSPGQuoteRecord → APSPGQuoteProductQuotes
     - 关联字段：
-      - QuoteReference
+      - QuoteReference, APSPGQuoteRecordIsId
     - 关系类型：
       - 1 : N
     - 说明：
@@ -49,7 +49,7 @@ erDiagram
 
 - APSPGQuoteProductQuotes → APSPGQuoteChildProductQuotes
   - 关联字段：
-    - ChildItem
+    - QuoteReference, ChildItem
   - 关系类型：
     - 1 : N
   - 说明：

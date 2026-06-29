@@ -91,7 +91,7 @@ CREATE TABLE [dbo].[APSPGQuoteIndustryCode](
     [Title] NVARCHAR (MAX) NULL,
     [Status] BIT NULL,
     CONSTRAINT [PK_APSPGQuoteIndustryCode] PRIMARY KEY CLUSTERED ([Id] ASC)
-) -- 一级表
+) -- 二级表
 CREATE TABLE [dbo].[APSPGQuoteProductQuotes] (
     [Id] INT IDENTITY(1, 1) NOT NULL,
     [QuoteReference] NVARCHAR(MAX) NOT NULL,
@@ -168,6 +168,7 @@ CREATE TABLE [dbo].[APSPGQuoteProductQuotes] (
     -- 是否次日回复 (1=是, 0=否)
     -- 当天日期年月日时分秒
     [ChildItem] INT NOT NULL,
+    [APSPGQuoteRecordIsId] INT NOT NULL,
     CONSTRAINT [PK_APSPGQuoteProductQuotes] PRIMARY KEY CLUSTERED ([Id] ASC)
 );
 -- 1. 创建产品类型主表
@@ -186,7 +187,7 @@ CREATE TABLE [dbo].[APSPG_TypeDesign] (
     [TypeDesignName] NVARCHAR(100) NOT NULL,
     -- 类型设计名称（必填）
 );
--- 二级表
+-- 三级表
 CREATE TABLE [dbo].[APSPGQuoteChildProductQuotes] (
     [Id] INT IDENTITY(1, 1) NOT NULL,
     [QuoteReference] NVARCHAR(MAX) NOT NULL,

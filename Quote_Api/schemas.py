@@ -67,6 +67,7 @@ class ProductQuoteOut(BaseModel):
     RSDL: Optional[bool] = None
     NextDayResponse: bool
     ChildItem: int
+    APSPGQuoteRecordIsId: int
 
     class Config:
         from_attributes = True

@@ -13,6 +13,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import SaveIcon from '@mui/icons-material/Save'
+import SearchIcon from '@mui/icons-material/Search'
 import { createApi, lookupApi } from '../api/axios'
 
 const emptyRecord = {
@@ -23,6 +24,7 @@ const emptyRecord = {
 }
 
 const emptyProduct = {
+  ItemSerialNumber: null,
   ProductType: '', TypeDesign: '', Rating: '', RaisteamDesignCode: '',
   EndConnection: '', Size: '', BodyMaterial: '', EngineeringID: '',
   AssemblyOption: '', TrimType: '', FSNumber: '', PSC: '',
@@ -36,6 +38,7 @@ const emptyProduct = {
 }
 
 const emptyChild = {
+  ItemSerialNumber: null,
   ProductType: '', TypeDesign: '', Rating: '', RaisteamDesignCode: '',
   EndConnection: '', Size: '', BodyMaterial: '', EngineeringID: '',
   AssemblyOption: '', TrimType: '', FSNumber: '', PSC: '',
@@ -72,6 +75,7 @@ export default function CreateQuote() {
   const [childForm, setChildForm] = useState({ ...emptyChild })
   const [childParentId, setChildParentId] = useState(null)
   const [savingChild, setSavingChild] = useState(false)
+  const [selectedProductId, setSelectedProductId] = useState(null)
 
   // Lookup data
   const [productTypes, setProductTypes] = useState([])
@@ -80,6 +84,13 @@ export default function CreateQuote() {
 
   // Snackbar
   const [snack, setSnack] = useState({ open: false, msg: '', severity: 'success' })
+
+  // Search dialog
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchRef, setSearchRef] = useState('')
+  const [searchResult, setSearchResult] = useState(null)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState('')
 
   useEffect(() => {
     lookupApi.productTypes().then((r) => setProductTypes(r.data)).catch(() => {})
@@ -165,11 +176,13 @@ export default function CreateQuote() {
     const val = e.target.value
     setProductForm((prev) => ({
       ...prev,
-      [field]: ['TotalPriceNetUnit', 'OptionNetPriceExtraPerUnit', 'QuoteTransferPerUnit',
-        'TransferPriceExtra', 'QuotePriceListPerUnit', 'ListPriceExtra',
-        'EngineeringCharges', 'PatternCharges', 'EngineeringHours',
-        'NoOfDateTakenFromDatedIn', 'NoOfDateTakenFromSpecFinalizedDate',
-      ].includes(field) ? Number(val) : val,
+      [field]: ['OnTime', 'NextDayResponse', 'RSDL'].includes(field)
+        ? val === '' ? null : val === 'true' || val === true
+        : ['TotalPriceNetUnit', 'OptionNetPriceExtraPerUnit', 'QuoteTransferPerUnit',
+          'TransferPriceExtra', 'QuotePriceListPerUnit', 'ListPriceExtra',
+          'EngineeringCharges', 'PatternCharges', 'EngineeringHours',
+          'NoOfDateTakenFromDatedIn', 'NoOfDateTakenFromSpecFinalizedDate',
+        ].includes(field) ? Number(val) : val,
     }))
   }
 
@@ -195,11 +208,14 @@ export default function CreateQuote() {
     try {
       const payload = {
         ...productForm,
+        ItemSerialNumber: productForm.ItemSerialNumber || null,
         SpecFinalizedDate: new Date(productForm.SpecFinalizedDate).toISOString(),
         ReplyDate: new Date(productForm.ReplyDate).toISOString(),
         OriginalDueDate: new Date(productForm.OriginalDueDate).toISOString(),
-        OnTime: Boolean(productForm.OnTime),
-        NextDayResponse: Boolean(productForm.NextDayResponse),
+        OnTime: productForm.OnTime === null ? true : Boolean(productForm.OnTime),
+        RSDL: productForm.RSDL === null ? null : Boolean(productForm.RSDL),
+        NextDayResponse: productForm.NextDayResponse === null ? true : Boolean(productForm.NextDayResponse),
+        RightInFirstTime: productForm.RightInFirstTime || null,
       }
 
       if (editingProduct) {
@@ -239,10 +255,38 @@ export default function CreateQuote() {
     }
   }
 
+  const sharedFields = [
+    'ItemSerialNumber',
+    'ProductType', 'TypeDesign', 'Rating', 'RaisteamDesignCode',
+    'EndConnection', 'Size', 'BodyMaterial', 'EngineeringID',
+    'AssemblyOption', 'TrimType', 'FSNumber', 'PSC',
+    'TotalPriceNetUnit', 'OptionNetPriceExtraPerUnit',
+    'QuoteTransferPerUnit', 'TransferPriceExtra',
+    'QuotePriceListPerUnit', 'ListPriceExtra',
+    'EngineeringHours', 'EngineeringCharges', 'PatternCharges',
+    'SpecFinalizedDate', 'ReplyDate', 'OriginalDueDate',
+    'NoOfDateTakenFromDatedIn', 'NoOfDateTakenFromSpecFinalizedDate',
+    'OnTime', 'RightInFirstTime', 'RSDL', 'NextDayResponse',
+  ]
+
   const openNewChild = (productId) => {
     setChildParentId(productId)
     setEditingChild(null)
-    setChildForm({ ...emptyChild })
+    const parent = products.find((p) => p.Id === productId)
+    const prefill = { ...emptyChild }
+    if (parent) {
+      sharedFields.forEach((field) => {
+        if (parent[field] !== undefined && parent[field] !== null) {
+          const val = parent[field]
+          if (field.endsWith('Date') && typeof val === 'string') {
+            prefill[field] = val.slice(0, 16)
+          } else {
+            prefill[field] = val
+          }
+        }
+      })
+    }
+    setChildForm(prefill)
     setChildDialog(true)
   }
 
@@ -265,11 +309,13 @@ export default function CreateQuote() {
     const val = e.target.value
     setChildForm((prev) => ({
       ...prev,
-      [field]: ['TotalPriceNetUnit', 'OptionNetPriceExtraPerUnit', 'QuoteTransferPerUnit',
-        'TransferPriceExtra', 'QuotePriceListPerUnit', 'ListPriceExtra',
-        'EngineeringCharges', 'PatternCharges', 'EngineeringHours',
-        'NoOfDateTakenFromDatedIn', 'NoOfDateTakenFromSpecFinalizedDate',
-      ].includes(field) ? Number(val) : val,
+      [field]: ['OnTime', 'NextDayResponse', 'RSDL'].includes(field)
+        ? val === '' ? null : val === 'true' || val === true
+        : ['TotalPriceNetUnit', 'OptionNetPriceExtraPerUnit', 'QuoteTransferPerUnit',
+          'TransferPriceExtra', 'QuotePriceListPerUnit', 'ListPriceExtra',
+          'EngineeringCharges', 'PatternCharges', 'EngineeringHours',
+          'NoOfDateTakenFromDatedIn', 'NoOfDateTakenFromSpecFinalizedDate',
+        ].includes(field) ? Number(val) : val,
     }))
   }
 
@@ -279,11 +325,14 @@ export default function CreateQuote() {
     try {
       const payload = {
         ...childForm,
+        ItemSerialNumber: childForm.ItemSerialNumber || null,
         SpecFinalizedDate: new Date(childForm.SpecFinalizedDate).toISOString(),
         ReplyDate: new Date(childForm.ReplyDate).toISOString(),
         OriginalDueDate: new Date(childForm.OriginalDueDate).toISOString(),
-        OnTime: Boolean(childForm.OnTime),
-        NextDayResponse: Boolean(childForm.NextDayResponse),
+        OnTime: childForm.OnTime === null ? true : Boolean(childForm.OnTime),
+        RSDL: childForm.RSDL === null ? null : Boolean(childForm.RSDL),
+        NextDayResponse: childForm.NextDayResponse === null ? true : Boolean(childForm.NextDayResponse),
+        RightInFirstTime: childForm.RightInFirstTime || null,
       }
       if (editingChild) {
         await createApi.updateChild(editingChild.Id, payload)
@@ -315,7 +364,12 @@ export default function CreateQuote() {
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>Create New Quote</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h5">Create New Quote</Typography>
+        <Button variant="outlined" startIcon={<SearchIcon />} onClick={() => setSearchOpen(true)}>
+          Search Quote
+        </Button>
+      </Box>
 
       {/* ───── Record Section ───── */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -455,9 +509,15 @@ export default function CreateQuote() {
               <TableBody>
                 {products.map((prod) => (
                   <>
-                    <TableRow key={prod.Id} hover>
+                    <TableRow key={prod.Id} hover
+                      selected={selectedProductId === prod.Id}
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelectedProductId(prod.Id)
+                        if (!childrenMap[prod.Id]) loadChildren(prod.Id)
+                      }}>
                       <TableCell padding="checkbox">
-                        <IconButton size="small" onClick={() => handleExpandProduct(prod.Id)}>
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleExpandProduct(prod.Id) }}>
                           {expandedProduct === prod.Id ? <ExpandMoreIcon /> : <ChevronRightIcon />}
                         </IconButton>
                       </TableCell>
@@ -469,9 +529,9 @@ export default function CreateQuote() {
                       <TableCell>{prod.BodyMaterial}</TableCell>
                       <TableCell>{prod.TotalPriceNetUnit?.toLocaleString()}</TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit"><IconButton size="small" onClick={() => openEditProduct(prod)}><EditIcon /></IconButton></Tooltip>
-                        <Tooltip title="Delete"><IconButton size="small" onClick={() => handleDeleteProduct(prod.Id)}><DeleteIcon /></IconButton></Tooltip>
-                        <Button size="small" startIcon={<AddIcon />} onClick={() => openNewChild(prod.Id)}>
+                        <Tooltip title="Edit"><IconButton size="small" onClick={(e) => { e.stopPropagation(); openEditProduct(prod) }}><EditIcon /></IconButton></Tooltip>
+                        <Tooltip title="Delete"><IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDeleteProduct(prod.Id) }}><DeleteIcon /></IconButton></Tooltip>
+                        <Button size="small" startIcon={<AddIcon />} onClick={(e) => { e.stopPropagation(); openNewChild(prod.Id); setSelectedProductId(prod.Id) }}>
                           Child
                         </Button>
                       </TableCell>
@@ -534,6 +594,86 @@ export default function CreateQuote() {
         )}
       </Paper>
 
+      {/* ───── Children Section ───── */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6">3. Child Items</Typography>
+          <Button variant="contained" startIcon={<AddIcon />}
+            onClick={() => { if (selectedProductId) openNewChild(selectedProductId) }}
+            disabled={!savedRecord || !selectedProductId}>
+            Add Child
+          </Button>
+        </Box>
+        <Divider sx={{ mb: 2 }} />
+
+        {!savedRecord ? (
+          <Alert severity="info">Save a record first to manage child items.</Alert>
+        ) : products.length === 0 ? (
+          <Typography color="text.secondary" sx={{ py: 2 }}>Add a product first.</Typography>
+        ) : (
+          <>
+            <TextField select fullWidth label="Select Parent Product" size="small"
+              value={selectedProductId || ''}
+              onChange={(e) => {
+                const pid = Number(e.target.value)
+                setSelectedProductId(pid)
+                if (!childrenMap[pid]) loadChildren(pid)
+              }}
+              sx={{ mb: 2 }}>
+              {products.map((p) => (
+                <MenuItem key={p.Id} value={p.Id}>
+                  [{p.FSNumber}] {p.ProductType} - {p.TypeDesign} ({p.Size})
+                </MenuItem>
+              ))}
+            </TextField>
+
+            {!selectedProductId ? (
+              <Alert severity="info">Select a parent product above to manage its child items.</Alert>
+            ) : (childrenMap[selectedProductId] || []).length === 0 ? (
+              <Typography color="text.secondary" sx={{ py: 2 }}>No child items for this product.</Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>FS Number</TableCell>
+                      <TableCell>Product Type</TableCell>
+                      <TableCell>Type Design</TableCell>
+                      <TableCell>Rating</TableCell>
+                      <TableCell>Size</TableCell>
+                      <TableCell>Total Price</TableCell>
+                      <TableCell>List Price</TableCell>
+                      <TableCell>Reply Date</TableCell>
+                      <TableCell>On Time</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(childrenMap[selectedProductId] || []).map((child) => (
+                      <TableRow key={child.Id}>
+                        <TableCell>{child.FSNumber}</TableCell>
+                        <TableCell>{child.ProductType}</TableCell>
+                        <TableCell>{child.TypeDesign}</TableCell>
+                        <TableCell>{child.Rating}</TableCell>
+                        <TableCell>{child.Size}</TableCell>
+                        <TableCell>{child.TotalPriceNetUnit?.toLocaleString()}</TableCell>
+                        <TableCell>{child.QuotePriceListPerUnit?.toLocaleString()}</TableCell>
+                        <TableCell>{child.ReplyDate ? new Date(child.ReplyDate).toLocaleDateString() : '-'}</TableCell>
+                        <TableCell>{child.OnTime ? 'Yes' : 'No'}</TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Edit"><IconButton size="small" onClick={() => openEditChild(child)}><EditIcon /></IconButton></Tooltip>
+                          <Tooltip title="Delete"><IconButton size="small" onClick={() => handleDeleteChild(child.Id, selectedProductId)}><DeleteIcon /></IconButton></Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </>
+        )}
+      </Paper>
+
       {/* ───── Product Dialog ───── */}
       <Dialog open={productDialog} onClose={() => setProductDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</DialogTitle>
@@ -586,6 +726,34 @@ export default function CreateQuote() {
             <Grid item xs={6} sm={4}><TextField fullWidth label="Spec Finalized Date" type="datetime-local" size="small" required value={productForm.SpecFinalizedDate} onChange={handleProductChange('SpecFinalizedDate')} InputLabelProps={{ shrink: true }} /></Grid>
             <Grid item xs={6} sm={4}><TextField fullWidth label="Reply Date" type="datetime-local" size="small" required value={productForm.ReplyDate} onChange={handleProductChange('ReplyDate')} InputLabelProps={{ shrink: true }} /></Grid>
             <Grid item xs={6} sm={4}><TextField fullWidth label="Original Due Date" type="datetime-local" size="small" required value={productForm.OriginalDueDate} onChange={handleProductChange('OriginalDueDate')} InputLabelProps={{ shrink: true }} /></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth label="Item Serial Number" size="small" value={productForm.ItemSerialNumber || ''} onChange={handleProductChange('ItemSerialNumber')} /></Grid>
+            <Grid item xs={6} sm={4}><TextField fullWidth label="NoOfDate Taken From DatedIn" type="number" size="small" value={productForm.NoOfDateTakenFromDatedIn} onChange={handleProductChange('NoOfDateTakenFromDatedIn')} /></Grid>
+            <Grid item xs={6} sm={4}><TextField fullWidth label="NoOfDate Taken From SpecFinalized" type="number" size="small" value={productForm.NoOfDateTakenFromSpecFinalizedDate} onChange={handleProductChange('NoOfDateTakenFromSpecFinalizedDate')} /></Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField select fullWidth label="On Time" size="small" value={productForm.OnTime} onChange={handleProductChange('OnTime')}>
+                <MenuItem value={true}>Yes</MenuItem>
+                <MenuItem value={false}>No</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={6} sm={3}><TextField fullWidth label="Right In First Time" size="small" value={productForm.RightInFirstTime ?? ''} onChange={handleProductChange('RightInFirstTime')} /></Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField select fullWidth label="RSDL" size="small"
+                value={productForm.RSDL === null ? '' : String(productForm.RSDL)}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setProductForm((prev) => ({ ...prev, RSDL: v === '' ? null : v === 'true' }))
+                }}>
+                <MenuItem value="">N/A</MenuItem>
+                <MenuItem value="true">Yes</MenuItem>
+                <MenuItem value="false">No</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField select fullWidth label="Next Day Response" size="small" value={productForm.NextDayResponse} onChange={handleProductChange('NextDayResponse')}>
+                <MenuItem value={true}>Yes</MenuItem>
+                <MenuItem value={false}>No</MenuItem>
+              </TextField>
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -621,6 +789,7 @@ export default function CreateQuote() {
             <Grid item xs={6} sm={4}><TextField fullWidth label="Trim Type" size="small" value={childForm.TrimType || ''} onChange={handleChildChange('TrimType')} /></Grid>
             <Grid item xs={6} sm={4}><TextField fullWidth label="FS Number" size="small" value={childForm.FSNumber} onChange={handleChildChange('FSNumber')} /></Grid>
             <Grid item xs={6} sm={4}><TextField fullWidth label="PSC" size="small" value={childForm.PSC || ''} onChange={handleChildChange('PSC')} /></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth label="Item Serial Number" size="small" value={childForm.ItemSerialNumber || ''} onChange={handleChildChange('ItemSerialNumber')} /></Grid>
             <Grid item xs={6} sm={3}><TextField fullWidth label="Total Price" type="number" size="small" value={childForm.TotalPriceNetUnit} onChange={handleChildChange('TotalPriceNetUnit')} /></Grid>
             <Grid item xs={6} sm={3}><TextField fullWidth label="Option Extra" type="number" size="small" value={childForm.OptionNetPriceExtraPerUnit} onChange={handleChildChange('OptionNetPriceExtraPerUnit')} /></Grid>
             <Grid item xs={6} sm={3}><TextField fullWidth label="Transfer" type="number" size="small" value={childForm.QuoteTransferPerUnit} onChange={handleChildChange('QuoteTransferPerUnit')} /></Grid>
@@ -629,6 +798,7 @@ export default function CreateQuote() {
             <Grid item xs={6} sm={3}><TextField fullWidth label="List Extra" type="number" size="small" value={childForm.ListPriceExtra} onChange={handleChildChange('ListPriceExtra')} /></Grid>
             <Grid item xs={6} sm={3}><TextField fullWidth label="Eng Hours" type="number" size="small" value={childForm.EngineeringHours ?? ''} onChange={handleChildChange('EngineeringHours')} /></Grid>
             <Grid item xs={6} sm={3}><TextField fullWidth label="Eng Charges" type="number" size="small" value={childForm.EngineeringCharges} onChange={handleChildChange('EngineeringCharges')} /></Grid>
+            <Grid item xs={6} sm={3}><TextField fullWidth label="Pattern Charges" type="number" size="small" value={childForm.PatternCharges} onChange={handleChildChange('PatternCharges')} /></Grid>
             <Grid item xs={6} sm={4}><TextField fullWidth label="Spec Finalized Date" type="datetime-local" size="small" value={childForm.SpecFinalizedDate} onChange={handleChildChange('SpecFinalizedDate')} InputLabelProps={{ shrink: true }} /></Grid>
             <Grid item xs={6} sm={4}><TextField fullWidth label="Reply Date" type="datetime-local" size="small" value={childForm.ReplyDate} onChange={handleChildChange('ReplyDate')} InputLabelProps={{ shrink: true }} /></Grid>
             <Grid item xs={6} sm={4}><TextField fullWidth label="Original Due Date" type="datetime-local" size="small" value={childForm.OriginalDueDate} onChange={handleChildChange('OriginalDueDate')} InputLabelProps={{ shrink: true }} /></Grid>
@@ -666,6 +836,124 @@ export default function CreateQuote() {
           <Button variant="contained" onClick={handleSaveChild} disabled={savingChild}>
             {savingChild ? 'Saving...' : (editingChild ? 'Update' : 'Add')}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ───── Search Dialog ───── */}
+      <Dialog open={searchOpen} onClose={() => { setSearchOpen(false); setSearchResult(null); setSearchError('') }}
+        maxWidth="lg" fullWidth>
+        <DialogTitle>Search Quote by QuoteReference</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2, mt: 1 }}>
+            <TextField fullWidth label="Quote Reference" size="small"
+              value={searchRef}
+              onChange={(e) => setSearchRef(e.target.value)}
+              placeholder="e.g. QT250001"
+              onKeyDown={(e) => { if (e.key === 'Enter') document.getElementById('search-btn').click() }} />
+            <Button id="search-btn" variant="contained" startIcon={<SearchIcon />}
+              disabled={searchLoading || !searchRef.trim()}
+              onClick={async () => {
+                setSearchLoading(true)
+                setSearchError('')
+                setSearchResult(null)
+                try {
+                  const res = await createApi.getRecord(searchRef.trim())
+                  setSearchResult(res.data)
+                } catch (err) {
+                  setSearchError(err.response?.data?.detail || 'Quote not found')
+                } finally {
+                  setSearchLoading(false)
+                }
+              }}>
+              Search
+            </Button>
+          </Box>
+
+          {searchLoading && <LinearProgress sx={{ mb: 2 }} />}
+          {searchError && <Alert severity="error" sx={{ mb: 2 }}>{searchError}</Alert>}
+
+          {searchResult && (
+            <>
+              <Typography variant="subtitle1" gutterBottom>
+                Record: {searchResult.record.QuoteReference}
+                <Chip label={searchResult.record.Category} size="small" sx={{ ml: 1 }} />
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                {searchResult.record.BuyerCustomer} → {searchResult.record.EndUser}
+              </Typography>
+
+              <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Products ({searchResult.products.length})</Typography>
+              {searchResult.products.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No products</Typography>
+              ) : (
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>FS Number</TableCell>
+                        <TableCell>Product Type</TableCell>
+                        <TableCell>Type Design</TableCell>
+                        <TableCell>Size</TableCell>
+                        <TableCell>Rating</TableCell>
+                        <TableCell>Total Price</TableCell>
+                        <TableCell>ChildItem</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {searchResult.products.map((p) => (
+                        <TableRow key={p.Id}>
+                          <TableCell>{p.FSNumber}</TableCell>
+                          <TableCell>{p.ProductType}</TableCell>
+                          <TableCell>{p.TypeDesign}</TableCell>
+                          <TableCell>{p.Size}</TableCell>
+                          <TableCell>{p.Rating}</TableCell>
+                          <TableCell>{p.TotalPriceNetUnit?.toLocaleString()}</TableCell>
+                          <TableCell>{p.ChildItem}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Children ({searchResult.children.length})</Typography>
+              {searchResult.children.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No children</Typography>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>FS Number</TableCell>
+                        <TableCell>Product Type</TableCell>
+                        <TableCell>Size</TableCell>
+                        <TableCell>Total Price</TableCell>
+                        <TableCell>List Price</TableCell>
+                        <TableCell>On Time</TableCell>
+                        <TableCell>ChildItem</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {searchResult.children.map((c) => (
+                        <TableRow key={c.Id}>
+                          <TableCell>{c.FSNumber}</TableCell>
+                          <TableCell>{c.ProductType}</TableCell>
+                          <TableCell>{c.Size}</TableCell>
+                          <TableCell>{c.TotalPriceNetUnit?.toLocaleString()}</TableCell>
+                          <TableCell>{c.QuotePriceListPerUnit?.toLocaleString()}</TableCell>
+                          <TableCell>{c.OnTime ? 'Yes' : 'No'}</TableCell>
+                          <TableCell>{c.ChildItem}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setSearchOpen(false); setSearchResult(null); setSearchError('') }}>Close</Button>
         </DialogActions>
       </Dialog>
 

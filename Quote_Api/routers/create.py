@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/create", tags=["Create"])
 
 
 def generate_child_item() -> int:
-    return int(datetime.now().strftime("%Y%m%d%H%M%S"))
+    return int(datetime.now().timestamp())
 
 
 # ──────────── Record ────────────
@@ -81,6 +81,7 @@ def create_product(quote_reference: str, payload: ProductQuoteCreate,
     product = APSPGQuoteProductQuotes(
         QuoteReference=quote_reference,
         ChildItem=child_item,
+        APSPGQuoteRecordIsId=record.Id,
         **payload.model_dump(),
     )
     db.add(product)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, NVARCHAR, DateTime, Float, BigInteger, Boolean, Date, Text, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, NVARCHAR, DateTime, Float, BigInteger, Boolean, Date, Text, DECIMAL, ForeignKey, and_
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -75,11 +75,12 @@ class APSPGQuoteProductQuotes(Base):
     RightInFirstTime = Column(NVARCHAR(50))
     RSDL = Column(Boolean)
     NextDayResponse = Column(Boolean, nullable=False)
-    ChildItem = Column(BigInteger, nullable=False)
+    ChildItem = Column(Integer, nullable=False)
+    APSPGQuoteRecordIsId = Column(Integer, nullable=False)
 
     record = relationship("APSPGQuoteRecord", back_populates="products",
-                          foreign_keys=[QuoteReference],
-                          primaryjoin="APSPGQuoteProductQuotes.QuoteReference == APSPGQuoteRecord.QuoteReference")
+                          foreign_keys=[QuoteReference, APSPGQuoteRecordIsId],
+                          primaryjoin="and_(APSPGQuoteProductQuotes.QuoteReference == APSPGQuoteRecord.QuoteReference, APSPGQuoteProductQuotes.APSPGQuoteRecordIsId == APSPGQuoteRecord.Id)")
     children = relationship("APSPGQuoteChildProductQuotes", back_populates="parent",
                             foreign_keys="[APSPGQuoteChildProductQuotes.ChildItem]",
                             primaryjoin="APSPGQuoteProductQuotes.ChildItem == APSPGQuoteChildProductQuotes.ChildItem")
@@ -120,7 +121,7 @@ class APSPGQuoteChildProductQuotes(Base):
     RightInFirstTime = Column(NVARCHAR(50))
     RSDL = Column(Boolean)
     NextDayResponse = Column(Boolean, nullable=False)
-    ChildItem = Column(BigInteger, nullable=False)
+    ChildItem = Column(Integer, nullable=False)
 
     parent = relationship("APSPGQuoteProductQuotes", back_populates="children",
                           foreign_keys=[ChildItem],
