@@ -3,8 +3,8 @@ Quote_Api/__pycache__/
 Quote_Api/*.pyc
 Quote_Api/*.pyo
 Quote_Api/.env
-**/venv/
-**/.venv/
+**/myenv/
+**/.myenv/
 **/env/
 *.egg-info/
 dist/
